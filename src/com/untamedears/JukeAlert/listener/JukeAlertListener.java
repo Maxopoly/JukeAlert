@@ -53,7 +53,9 @@ import vg.civcraft.mc.citadel.ReinforcementManager;
 import vg.civcraft.mc.citadel.events.ReinforcementCreationEvent;
 import vg.civcraft.mc.citadel.reinforcement.PlayerReinforcement;
 import vg.civcraft.mc.citadel.reinforcement.Reinforcement;
+import vg.civcraft.mc.namelayer.NameLayerPlugin;
 import vg.civcraft.mc.namelayer.events.GroupDeleteEvent;
+import vg.civcraft.mc.namelayer.events.GroupInvalidationEvent;
 import vg.civcraft.mc.namelayer.events.GroupMergeEvent;
 import vg.civcraft.mc.namelayer.group.Group;
 
@@ -249,7 +251,52 @@ public class JukeAlertListener implements Listener {
                 }
         }
     }
-
+    
+    @EventHandler(ignoreCancelled = true)
+    public void onGroupEvent(GroupInvalidationEvent event) {
+    	String reason = event.getReason();
+    	if (reason.equalsIgnoreCase("delete")) {
+	        String groupName = event.getParameter() [0];
+	        Set<Snitch> removeSet = new TreeSet<Snitch>();
+	        for (Snitch snitch : snitchManager.getAllSnitches()) {
+	            final Group snitchGroup = snitch.getGroup();
+	            String snitchGroupName = null;
+	            if (snitchGroup != null) {
+	                snitchGroupName = snitchGroup.getName();
+	            }
+	            if (snitchGroupName != null && snitchGroupName.equalsIgnoreCase(groupName)) {
+	                removeSet.add(snitch);
+	            }
+	        }
+	        for (Snitch snitch : removeSet) {
+	            final Location loc = snitch.getLoc();
+	            if (snitch.shouldLog()) {
+	                plugin.getJaLogger().logSnitchBreak(loc.getWorld().getName(), loc.getBlockX(), loc.getBlockY(), loc.getBlockZ());
+	            }
+	            snitchManager.removeSnitch(snitch);
+	        }
+    	}
+    	else if (reason.equalsIgnoreCase("merge")) {
+    		String group1 = event.getParameter() [0];
+    		String group2 = event.getParameter() [1];
+    		Group g1 = NameLayerPlugin.getGroupManagerDao().getGroup(group1);
+            Set<Snitch> mergeSet = new TreeSet<Snitch>();
+            for (Snitch snitch : snitchManager.getAllSnitches()) {
+                final Group snitchGroup = snitch.getGroup();
+                String snitchGroupName = null;
+                if (snitchGroup != null) {
+                    snitchGroupName = snitchGroup.getName();
+                }
+                if (snitchGroupName != null && snitchGroupName.equalsIgnoreCase(group2)) {
+                	mergeSet.add(snitch);
+                }
+            }
+            for (Snitch snitch : mergeSet) {
+            	snitch.setGroup(g1);
+            }
+    	}
+    }
+    
     @EventHandler(ignoreCancelled = true)
     public void onGroupDeletion(GroupDeleteEvent event) {
         String groupName = event.getGroup().getName();
@@ -293,6 +340,7 @@ public class JukeAlertListener implements Listener {
         	snitch.setGroup(g1);
         }
     }
+    
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void breakSnitchBlock(BlockBreakEvent event) {
